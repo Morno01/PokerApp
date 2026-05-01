@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Alert,
   Modal,
+  Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,7 +70,11 @@ export default function EndTournamentScreen({ navigation }: Props) {
 
   function handleCalculate() {
     if (!canCalculate()) {
-      Alert.alert('Mangler placering', `Tildel alle ${prizeDistribution.length} præmiepladser.`);
+      if (Platform.OS === 'web') {
+        window.alert(`Tildel alle ${prizeDistribution.length} præmiepladser.`);
+      } else {
+        Alert.alert('Mangler placering', `Tildel alle ${prizeDistribution.length} præmiepladser.`);
+      }
       return;
     }
     const results = calculateResults(
@@ -101,21 +106,31 @@ export default function EndTournamentScreen({ navigation }: Props) {
       navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
     } catch (err) {
       setSaving(false);
-      Alert.alert(
-        'Fejl ved gemning',
-        'Turneringen kunne ikke gemmes til Firebase. Tjek din internetforbindelse og Firebase-opsætning.',
-        [
-          {
-            text: 'Afslut alligevel',
-            style: 'destructive',
-            onPress: () => {
-              clearTournament();
-              navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      if (Platform.OS === 'web') {
+        const exit = window.confirm(
+          'Turneringen kunne ikke gemmes.\n\nTryk OK for at afslutte alligevel, eller Annuller for at prøve igen.',
+        );
+        if (exit) {
+          clearTournament();
+          navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+        }
+      } else {
+        Alert.alert(
+          'Fejl ved gemning',
+          'Turneringen kunne ikke gemmes til Firebase.',
+          [
+            {
+              text: 'Afslut alligevel',
+              style: 'destructive',
+              onPress: () => {
+                clearTournament();
+                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+              },
             },
-          },
-          { text: 'Prøv igen', onPress: handleSave },
-        ],
-      );
+            { text: 'Prøv igen', onPress: handleSave },
+          ],
+        );
+      }
     }
   }
 

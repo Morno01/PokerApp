@@ -22,8 +22,20 @@ import { Player } from '../types';
 
 type Props = NativeStackScreenProps<GameStackParamList, 'ActiveTournament'>;
 
+function webConfirm(title: string, message: string, onConfirm: () => void) {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+  } else {
+    Alert.alert(title, message, [
+      { text: 'Annuller', style: 'cancel' },
+      { text: 'Bekræft', onPress: onConfirm },
+    ]);
+  }
+}
+
 export default function ActiveTournamentScreen({ navigation }: Props) {
   const { activeTournament, addPlayer, removePlayer, addRebuy } = useTournament();
+  const [editMode, setEditMode] = useState(false);
   const [addPlayerModalVisible, setAddPlayerModalVisible] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
 
@@ -36,7 +48,11 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
     const name = newPlayerName.trim();
     if (!name) return;
     if (players.find((p) => p.name.toLowerCase() === name.toLowerCase())) {
-      Alert.alert('Fejl', 'Der er allerede en spiller med dette navn.');
+      if (Platform.OS === 'web') {
+        window.alert('Der er allerede en spiller med dette navn.');
+      } else {
+        Alert.alert('Fejl', 'Der er allerede en spiller med dette navn.');
+      }
       return;
     }
     addPlayer(name);
@@ -45,39 +61,34 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
   }
 
   function handleRemovePlayer(player: Player) {
-    Alert.alert(
+    webConfirm(
       'Fjern spiller',
       `Er du sikker på at du vil fjerne ${player.name} fra turneringen?`,
-      [
-        { text: 'Annuller', style: 'cancel' },
-        { text: 'Fjern', style: 'destructive', onPress: () => removePlayer(player.id) },
-      ],
+      () => removePlayer(player.id),
     );
   }
 
   function handleRebuy(player: Player) {
-    Alert.alert(
+    webConfirm(
       'Rebuy',
       `${player.name} rebuy for ${formatCurrency(rebuyPrice)}?`,
-      [
-        { text: 'Annuller', style: 'cancel' },
-        { text: 'Bekræft', onPress: () => addRebuy(player.id) },
-      ],
+      () => addRebuy(player.id),
     );
   }
 
   function handleEndTournament() {
     if (players.length < 2) {
-      Alert.alert('Fejl', 'Der skal være mindst 2 spillere for at afslutte turneringen.');
+      if (Platform.OS === 'web') {
+        window.alert('Der skal være mindst 2 spillere for at afslutte turneringen.');
+      } else {
+        Alert.alert('Fejl', 'Der skal være mindst 2 spillere for at afslutte turneringen.');
+      }
       return;
     }
-    Alert.alert(
+    webConfirm(
       'Afslut turnering?',
       'Er du klar til at afslutte turneringen og fordele præmierne?',
-      [
-        { text: 'Annuller', style: 'cancel' },
-        { text: 'Afslut', onPress: () => navigation.navigate('EndTournament') },
-      ],
+      () => navigation.navigate('EndTournament'),
     );
   }
 
@@ -112,18 +123,36 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
         </View>
       </View>
 
-      {/* PLAYERS LIST */}
+      {/* PLAYERS HEADER */}
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Spillere ({players.length})</Text>
-        <TouchableOpacity
-          style={styles.addPlayerBtn}
-          onPress={() => setAddPlayerModalVisible(true)}
-        >
-          <Ionicons name="person-add-outline" size={18} color={Colors.white} />
-          <Text style={styles.addPlayerBtnText}>Tilføj</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {editMode && (
+            <TouchableOpacity
+              style={styles.addPlayerBtn}
+              onPress={() => setAddPlayerModalVisible(true)}
+            >
+              <Ionicons name="person-add-outline" size={18} color={Colors.white} />
+              <Text style={styles.addPlayerBtnText}>Tilføj</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.editBtn, editMode && styles.editBtnActive]}
+            onPress={() => setEditMode((v) => !v)}
+          >
+            <Ionicons
+              name={editMode ? 'checkmark' : 'pencil'}
+              size={16}
+              color={editMode ? Colors.white : Colors.text}
+            />
+            <Text style={[styles.editBtnText, editMode && styles.editBtnTextActive]}>
+              {editMode ? 'Færdig' : 'Rediger'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
+      {/* PLAYERS LIST */}
       <ScrollView style={styles.playersList} contentContainerStyle={{ paddingBottom: 120 }}>
         {players.map((player) => {
           const invested = calculatePlayerInvestment(player, buyInPrice, rebuyPrice);
@@ -150,12 +179,14 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
                   <Ionicons name="refresh-circle-outline" size={16} color={Colors.warning} />
                   <Text style={styles.rebuyButtonText}>Rebuy</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.removeButton}
-                  onPress={() => handleRemovePlayer(player)}
-                >
-                  <Ionicons name="remove-circle-outline" size={20} color={Colors.danger} />
-                </TouchableOpacity>
+                {editMode && (
+                  <TouchableOpacity
+                    style={styles.removeButton}
+                    onPress={() => handleRemovePlayer(player)}
+                  >
+                    <Ionicons name="remove-circle-outline" size={24} color={Colors.danger} />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           );
@@ -255,6 +286,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   sectionTitle: { color: Colors.text, fontSize: 18, fontWeight: '700' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   addPlayerBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,6 +297,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   addPlayerBtnText: { color: Colors.white, fontSize: 14, fontWeight: '600' },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.cardAlt,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  editBtnActive: {
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
+  },
+  editBtnText: { color: Colors.text, fontSize: 14, fontWeight: '600' },
+  editBtnTextActive: { color: Colors.white },
   playersList: { flex: 1, paddingHorizontal: 16 },
   playerCard: {
     flexDirection: 'row',
