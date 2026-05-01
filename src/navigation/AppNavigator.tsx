@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, Theme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,24 @@ import ActiveTournamentScreen from '../screens/ActiveTournamentScreen';
 import EndTournamentScreen from '../screens/EndTournamentScreen';
 import PreviousTournamentsScreen from '../screens/PreviousTournamentsScreen';
 import StatisticsScreen from '../screens/StatisticsScreen';
+
+const AppTheme: Theme = {
+  dark: true,
+  colors: {
+    primary: Colors.primary,
+    background: Colors.bg,
+    card: Colors.card,
+    text: Colors.text,
+    border: Colors.border,
+    notification: Colors.primary,
+  },
+  fonts: {
+    regular: { fontFamily: 'System', fontWeight: '400' },
+    medium: { fontFamily: 'System', fontWeight: '500' },
+    bold: { fontFamily: 'System', fontWeight: '700' },
+    heavy: { fontFamily: 'System', fontWeight: '900' },
+  },
+};
 
 export type GameStackParamList = {
   Home: undefined;
@@ -60,7 +78,7 @@ function GameStackNavigator() {
 
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={AppTheme}>
       <Tab.Navigator
         screenOptions={({ route }) => ({
           headerShown: false,
