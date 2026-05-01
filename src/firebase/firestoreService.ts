@@ -9,6 +9,8 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { CompletedTournament, PlayerResult, PrizePlace } from '../types';
+import { LOCAL_MODE } from '../config';
+import { saveLocal, loadLocal } from './localService';
 
 function toFirestore(tournament: Omit<CompletedTournament, 'id'>): DocumentData {
   return {
@@ -34,11 +36,13 @@ function fromFirestore(id: string, data: DocumentData): CompletedTournament {
 export async function saveTournament(
   tournament: Omit<CompletedTournament, 'id'>,
 ): Promise<string> {
+  if (LOCAL_MODE) return saveLocal(tournament);
   const docRef = await addDoc(collection(db, 'tournaments'), toFirestore(tournament));
   return docRef.id;
 }
 
 export async function loadTournaments(): Promise<CompletedTournament[]> {
+  if (LOCAL_MODE) return loadLocal();
   const q = query(collection(db, 'tournaments'), orderBy('date', 'desc'));
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => fromFirestore(doc.id, doc.data()));
