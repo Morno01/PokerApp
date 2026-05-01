@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { Colors } from '../theme/colors';
 import HomeScreen from '../screens/HomeScreen';
+import GroupDetailScreen from '../screens/GroupDetailScreen';
 import TournamentSetupScreen from '../screens/TournamentSetupScreen';
 import ActiveTournamentScreen from '../screens/ActiveTournamentScreen';
 import EndTournamentScreen from '../screens/EndTournamentScreen';
@@ -32,7 +33,8 @@ const AppTheme: Theme = {
 
 export type GameStackParamList = {
   Home: undefined;
-  TournamentSetup: undefined;
+  GroupDetail: { groupId: string };
+  TournamentSetup: { groupId?: string };
   ActiveTournament: undefined;
   EndTournament: undefined;
 };
@@ -57,6 +59,11 @@ function GameStackNavigator() {
       }}
     >
       <GameStack.Screen name="Home" component={HomeScreen} options={{ title: 'PokerNat' }} />
+      <GameStack.Screen
+        name="GroupDetail"
+        component={GroupDetailScreen}
+        options={{ title: 'Hold' }}
+      />
       <GameStack.Screen
         name="TournamentSetup"
         component={TournamentSetupScreen}

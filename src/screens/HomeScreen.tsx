@@ -1,127 +1,223 @@
-import React, { useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  Modal,
+  Platform,
+  Alert,
+} from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { GameStackParamList } from '../navigation/AppNavigator';
 import { Colors } from '../theme/colors';
 import { useTournament } from '../context/TournamentContext';
+import { useGroups } from '../context/GroupContext';
 
 type Props = NativeStackScreenProps<GameStackParamList, 'Home'>;
 
 export default function HomeScreen({ navigation }: Props) {
   const { activeTournament } = useTournament();
+  const { groups, createGroup, removeGroup } = useGroups();
+  const [modalVisible, setModalVisible] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (activeTournament) {
       navigation.replace('ActiveTournament');
     }
   }, [activeTournament]);
 
+  function handleCreateGroup() {
+    const name = newGroupName.trim();
+    if (!name) return;
+    const group = createGroup(name);
+    setNewGroupName('');
+    setModalVisible(false);
+    navigation.navigate('GroupDetail', { groupId: group.id });
+  }
+
+  function handleDeleteGroup(id: string, name: string) {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Slet holdet "${name}"?`)) removeGroup(id);
+    } else {
+      Alert.alert('Slet hold', `Slet holdet "${name}"?`, [
+        { text: 'Annuller', style: 'cancel' },
+        { text: 'Slet', style: 'destructive', onPress: () => removeGroup(id) },
+      ]);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>🃏 PokerNat</Text>
-        <Text style={styles.subtitle}>Vælg et spil for at starte</Text>
+        <Text style={styles.title}>🂣 PokerNat</Text>
+        <Text style={styles.subtitle}>Vælg et hold for at starte en turnering</Text>
       </View>
 
-      <View style={styles.gamesGrid}>
-        <TouchableOpacity
-          style={styles.gameCard}
-          onPress={() => navigation.navigate('TournamentSetup')}
-          activeOpacity={0.8}
-        >
-          <View style={styles.gameIconContainer}>
-            <Text style={styles.gameEmoji}>♠️</Text>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        {groups.length === 0 && (
+          <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>👥</Text>
+            <Text style={styles.emptyTitle}>Ingen hold endnu</Text>
+            <Text style={styles.emptyText}>Opret dit første hold for at komme i gang</Text>
           </View>
-          <Text style={styles.gameName}>Poker</Text>
-          <Text style={styles.gameDescription}>Texas Hold'em turnering</Text>
-          <View style={styles.playButton}>
-            <Text style={styles.playButtonText}>Start turnering</Text>
-            <Ionicons name="arrow-forward" size={16} color={Colors.white} />
-          </View>
-        </TouchableOpacity>
-      </View>
+        )}
 
-      <Text style={styles.hint}>Flere spil kommer snart</Text>
+        {groups.map((group) => (
+          <View key={group.id} style={styles.groupCard}>
+            <TouchableOpacity
+              style={styles.groupMain}
+              onPress={() => navigation.navigate('GroupDetail', { groupId: group.id })}
+              activeOpacity={0.8}
+            >
+              <View style={styles.groupIcon}>
+                <Text style={styles.groupEmoji}>♠️</Text>
+              </View>
+              <View style={styles.groupInfo}>
+                <Text style={styles.groupName}>{group.name}</Text>
+                <Text style={styles.groupMembers}>
+                  {group.members.length === 0
+                    ? 'Ingen medlemmer endnu'
+                    : `${group.members.length} medlem${group.members.length !== 1 ? 'mer' : ''}: ${group.members.slice(0, 3).join(', ')}${group.members.length > 3 ? '...' : ''}`}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+            </TouchableOpacity>
+
+            <View style={styles.groupActions}>
+              <TouchableOpacity
+                style={styles.startBtn}
+                onPress={() => navigation.navigate('TournamentSetup', { groupId: group.id })}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="play" size={14} color={Colors.white} />
+                <Text style={styles.startBtnText}>Start turnering</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteBtn}
+                onPress={() => handleDeleteGroup(group.id, group.name)}
+              >
+                <Ionicons name="trash-outline" size={16} color={Colors.danger} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)} activeOpacity={0.8}>
+        <Ionicons name="add" size={28} color={Colors.white} />
+        <Text style={styles.fabText}>Opret hold</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Nyt hold</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Holdets navn (f.eks. Fredagsholdet)"
+              placeholderTextColor={Colors.textDim}
+              value={newGroupName}
+              onChangeText={setNewGroupName}
+              autoFocus
+              onSubmitEditing={handleCreateGroup}
+              returnKeyType="done"
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => { setModalVisible(false); setNewGroupName(''); }}
+              >
+                <Text style={styles.modalCancelText}>Annuller</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleCreateGroup}>
+                <Text style={styles.modalConfirmText}>Opret</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.bg,
-    padding: 24,
-  },
-  header: {
-    marginTop: 24,
-    marginBottom: 40,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: Colors.textMuted,
-  },
-  gamesGrid: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  gameCard: {
+  container: { flex: 1, backgroundColor: Colors.bg },
+  header: { paddingTop: 24, paddingBottom: 16, paddingHorizontal: 24, alignItems: 'center' },
+  title: { fontSize: 32, fontWeight: 'bold', color: Colors.text, marginBottom: 6 },
+  subtitle: { fontSize: 15, color: Colors.textMuted, textAlign: 'center' },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+  empty: { alignItems: 'center', marginTop: 60, gap: 12 },
+  emptyEmoji: { fontSize: 56 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', color: Colors.text },
+  emptyText: { fontSize: 15, color: Colors.textMuted, textAlign: 'center' },
+  groupCard: {
     backgroundColor: Colors.card,
-    borderRadius: 20,
-    padding: 28,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
-    alignItems: 'center',
+    marginBottom: 14,
+    overflow: 'hidden',
   },
-  gameIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.cardAlt,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  gameEmoji: {
-    fontSize: 40,
-  },
-  gameName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  gameDescription: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    marginBottom: 24,
-  },
-  playButton: {
+  groupMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    gap: 8,
+    padding: 16,
+    gap: 14,
   },
-  playButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '600',
+  groupIcon: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: Colors.cardAlt,
+    justifyContent: 'center', alignItems: 'center',
   },
-  hint: {
-    textAlign: 'center',
-    color: Colors.textDim,
-    fontSize: 13,
-    marginBottom: 8,
+  groupEmoji: { fontSize: 24 },
+  groupInfo: { flex: 1 },
+  groupName: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 3 },
+  groupMembers: { fontSize: 13, color: Colors.textMuted },
+  groupActions: {
+    flexDirection: 'row', alignItems: 'center',
+    borderTopWidth: 1, borderTopColor: Colors.border,
+    paddingHorizontal: 16, paddingVertical: 10, gap: 10,
   },
+  startBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primary, borderRadius: 10, paddingVertical: 10, gap: 6,
+  },
+  startBtnText: { color: Colors.white, fontWeight: '700', fontSize: 14 },
+  deleteBtn: { padding: 8 },
+  fab: {
+    position: 'absolute', bottom: 24, left: 24, right: 24,
+    backgroundColor: Colors.purple, borderRadius: 14, padding: 16,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+  },
+  fabText: { color: Colors.white, fontSize: 16, fontWeight: '700' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  modalContent: {
+    backgroundColor: Colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    padding: 24, paddingBottom: 40,
+  },
+  modalTitle: { color: Colors.text, fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
+  modalInput: {
+    backgroundColor: Colors.cardAlt, borderRadius: 12, padding: 14,
+    color: Colors.text, fontSize: 16, borderWidth: 1, borderColor: Colors.border, marginBottom: 16,
+  },
+  modalButtons: { flexDirection: 'row', gap: 12 },
+  modalCancelBtn: {
+    flex: 1, padding: 14, borderRadius: 12, backgroundColor: Colors.cardAlt,
+    alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+  },
+  modalCancelText: { color: Colors.textMuted, fontSize: 16, fontWeight: '600' },
+  modalConfirmBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center' },
+  modalConfirmText: { color: Colors.white, fontSize: 16, fontWeight: '600' },
 });

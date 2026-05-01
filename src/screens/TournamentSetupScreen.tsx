@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GameStackParamList } from '../navigation/AppNavigator';
 import { Colors } from '../theme/colors';
 import { useTournament } from '../context/TournamentContext';
+import { useGroups } from '../context/GroupContext';
 import { Player, PrizePlace } from '../types';
 
 type Props = NativeStackScreenProps<GameStackParamList, 'TournamentSetup'>;
@@ -32,21 +33,34 @@ const DEFAULT_PRIZE_PRESETS: Record<number, number[]> = {
   5: [40, 25, 20, 10, 5],
 };
 
-export default function TournamentSetupScreen({ navigation }: Props) {
+export default function TournamentSetupScreen({ route, navigation }: Props) {
   const { startTournament } = useTournament();
+  const { groups } = useGroups();
+  const groupId = route.params?.groupId;
+  const group = groups.find((g) => g.id === groupId);
 
-  const [players, setPlayers] = useState<Player[]>([]);
+  const [players, setPlayers] = useState<Player[]>(() =>
+    (group?.members ?? []).map((name) => ({ id: genId(), name, rebuys: 0 })),
+  );
   const [playerNameInput, setPlayerNameInput] = useState('');
   const [buyInPrice, setBuyInPrice] = useState('');
   const [rebuyPrice, setRebuyPrice] = useState('');
   const [prizeCount, setPrizeCount] = useState(3);
   const [prizePercentages, setPrizePercentages] = useState<string[]>(['50', '30', '20']);
 
+  function showError(msg: string) {
+    if (Platform.OS === 'web') {
+      window.alert(msg);
+    } else {
+      Alert.alert('Fejl', msg);
+    }
+  }
+
   function addPlayer() {
     const name = playerNameInput.trim();
     if (!name) return;
     if (players.find((p) => p.name.toLowerCase() === name.toLowerCase())) {
-      Alert.alert('Fejl', 'En spiller med dette navn er allerede tilføjet.');
+      showError('En spiller med dette navn er allerede tilføjet.');
       return;
     }
     setPlayers((prev) => [...prev, { id: genId(), name, rebuys: 0 }]);
@@ -87,14 +101,15 @@ export default function TournamentSetupScreen({ navigation }: Props) {
       return 'Angiv en gyldig rebuy pris.';
     if (prizeCount > players.length)
       return `Du kan ikke have flere præmier (${prizeCount}) end spillere (${players.length}).`;
-    if (totalPercentage() !== 100) return `Præmieprocenterne skal give 100% (nu: ${totalPercentage()}%).`;
+    if (totalPercentage() !== 100)
+      return `Præmieprocenterne skal give 100% (nu: ${totalPercentage()}%).`;
     return null;
   }
 
   function handleStart() {
     const error = validate();
     if (error) {
-      Alert.alert('Ugyldig opsætning', error);
+      showError(error);
       return;
     }
 
@@ -122,12 +137,18 @@ export default function TournamentSetupScreen({ navigation }: Props) {
     >
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
-        {/* PLAYERS */}
+        {group && (
+          <View style={styles.groupBanner}>
+            <Ionicons name="people" size={18} color={Colors.purple} />
+            <Text style={styles.groupBannerText}>Hold: {group.name}</Text>
+          </View>
+        )}
+
         <Section title="Spillere">
           <View style={styles.inputRow}>
             <TextInput
               style={[styles.input, { flex: 1 }]}
-              placeholder="Spillerens navn"
+              placeholder="Tilføj ekstra spiller..."
               placeholderTextColor={Colors.textDim}
               value={playerNameInput}
               onChangeText={setPlayerNameInput}
@@ -145,7 +166,7 @@ export default function TournamentSetupScreen({ navigation }: Props) {
 
           {players.map((player) => (
             <View key={player.id} style={styles.playerRow}>
-              <Text style={styles.playerIcon}>🃏</Text>
+              <Text style={styles.playerIcon}>🂣</Text>
               <Text style={styles.playerName}>{player.name}</Text>
               <TouchableOpacity onPress={() => removePlayer(player.id)} style={styles.removeBtn}>
                 <Ionicons name="trash-outline" size={18} color={Colors.danger} />
@@ -156,7 +177,6 @@ export default function TournamentSetupScreen({ navigation }: Props) {
           <Text style={styles.countLabel}>{players.length} spiller{players.length !== 1 ? 'e' : ''}</Text>
         </Section>
 
-        {/* BUY-IN */}
         <Section title="Betalinger">
           <View style={styles.row}>
             <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
@@ -184,7 +204,6 @@ export default function TournamentSetupScreen({ navigation }: Props) {
           </View>
         </Section>
 
-        {/* PRIZES */}
         <Section title="Præmiefordeling">
           <Text style={styles.label}>Antal præmiepladser</Text>
           <View style={styles.prizeCountRow}>
@@ -194,9 +213,7 @@ export default function TournamentSetupScreen({ navigation }: Props) {
                 style={[styles.prizeCountBtn, prizeCount === n && styles.prizeCountBtnActive]}
                 onPress={() => handlePrizeCountChange(n)}
               >
-                <Text
-                  style={[styles.prizeCountBtnText, prizeCount === n && styles.prizeCountBtnTextActive]}
-                >
+                <Text style={[styles.prizeCountBtnText, prizeCount === n && styles.prizeCountBtnTextActive]}>
                   {n}
                 </Text>
               </TouchableOpacity>
@@ -259,45 +276,32 @@ function getMedal(place: number): string {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: Colors.bg },
   content: { padding: 16 },
-  section: { marginBottom: 24 },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 12,
+  groupBanner: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.cardAlt, borderRadius: 12, padding: 12,
+    marginBottom: 20, gap: 8, borderWidth: 1, borderColor: Colors.purple,
   },
+  groupBannerText: { color: Colors.purple, fontWeight: '600', fontSize: 15 },
+  section: { marginBottom: 24 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: Colors.text, marginBottom: 12 },
   card: {
-    backgroundColor: Colors.card,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: Colors.card, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: Colors.border,
   },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
   input: {
-    backgroundColor: Colors.cardAlt,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: Colors.text,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    backgroundColor: Colors.cardAlt, borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 12,
+    color: Colors.text, fontSize: 16, borderWidth: 1, borderColor: Colors.border,
   },
   addButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: 10,
-    padding: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: Colors.primary, borderRadius: 10, padding: 12,
+    justifyContent: 'center', alignItems: 'center',
   },
   emptyHint: { color: Colors.textDim, fontSize: 14, marginBottom: 8, textAlign: 'center' },
   playerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   playerIcon: { fontSize: 20, marginRight: 10 },
   playerName: { flex: 1, color: Colors.text, fontSize: 16 },
@@ -308,14 +312,9 @@ const styles = StyleSheet.create({
   label: { color: Colors.textMuted, fontSize: 14, marginBottom: 8 },
   prizeCountRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   prizeCountBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.cardAlt,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    width: 44, height: 44, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+    backgroundColor: Colors.cardAlt, borderWidth: 1, borderColor: Colors.border,
   },
   prizeCountBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   prizeCountBtnText: { color: Colors.textMuted, fontSize: 16, fontWeight: '600' },
@@ -325,36 +324,24 @@ const styles = StyleSheet.create({
   placeMedal: { fontSize: 22, width: 30 },
   placeLabel: { flex: 1, color: Colors.text, fontSize: 15 },
   pctInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.cardAlt,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.cardAlt, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 12, paddingVertical: 8,
   },
   pctInput: { color: Colors.text, fontSize: 16, minWidth: 40, textAlign: 'right' },
   pctSign: { color: Colors.textMuted, fontSize: 16, marginLeft: 4 },
   totalRow: {
-    marginTop: 16,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: Colors.cardAlt,
-    alignItems: 'center',
+    marginTop: 16, padding: 10, borderRadius: 10,
+    backgroundColor: Colors.cardAlt, alignItems: 'center',
   },
   totalRowError: { backgroundColor: '#3d1515' },
   totalLabel: { color: Colors.success, fontWeight: '600', fontSize: 15 },
   totalLabelError: { color: Colors.danger },
   startButton: {
-    backgroundColor: Colors.success,
-    borderRadius: 16,
-    padding: 18,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
+    backgroundColor: Colors.success, borderRadius: 16, padding: 18,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center',
+    gap: 10, marginTop: 8,
   },
   startButtonText: { color: Colors.white, fontSize: 18, fontWeight: '700' },
 });

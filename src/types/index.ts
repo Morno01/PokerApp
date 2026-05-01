@@ -1,5 +1,11 @@
 export type GameType = 'poker';
 
+export interface Group {
+  id: string;
+  name: string;
+  members: string[];
+}
+
 export interface Player {
   id: string;
   name: string;
