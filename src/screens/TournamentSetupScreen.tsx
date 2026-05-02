@@ -48,6 +48,8 @@ export default function TournamentSetupScreen({ route, navigation }: Props) {
   const [prizeCount, setPrizeCount] = useState(3);
   const [prizePercentages, setPrizePercentages] = useState<string[]>(['50', '30', '20']);
   const [blindLevelMinutes, setBlindLevelMinutes] = useState(0);
+  const [startBlind, setStartBlind] = useState('25');
+  const [blindIncrement, setBlindIncrement] = useState('25');
 
   function showError(msg: string) {
     if (Platform.OS === 'web') {
@@ -125,6 +127,8 @@ export default function TournamentSetupScreen({ route, navigation }: Props) {
       rebuyPrice: Number(rebuyPrice),
       prizeDistribution,
       blindLevelMinutes,
+      startBlind: Number(startBlind) || 0,
+      blindIncrement: Number(blindIncrement) || 0,
     });
 
     navigation.replace('ActiveTournament');
@@ -269,6 +273,31 @@ export default function TournamentSetupScreen({ route, navigation }: Props) {
               ⏱ Alarm lyder hvert {blindLevelMinutes}. minut — stopper ikke før du trykker
             </Text>
           )}
+
+          <View style={[styles.row, { marginTop: 16 }]}>
+            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <Text style={styles.label}>Startblind (kr.)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="25"
+                placeholderTextColor={Colors.textDim}
+                keyboardType="numeric"
+                value={startBlind}
+                onChangeText={setStartBlind}
+              />
+            </View>
+            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+              <Text style={styles.label}>Stiger med (kr.)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="25"
+                placeholderTextColor={Colors.textDim}
+                keyboardType="numeric"
+                value={blindIncrement}
+                onChangeText={setBlindIncrement}
+              />
+            </View>
+          </View>
         </Section>
 
         <TouchableOpacity style={styles.startButton} onPress={handleStart} activeOpacity={0.8}>

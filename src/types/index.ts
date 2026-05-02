@@ -26,6 +26,8 @@ export interface ActiveTournament {
   players: Player[];
   prizeDistribution: PrizePlace[];
   blindLevelMinutes: number;
+  startBlind: number;
+  blindIncrement: number;
 }
 
 export interface PlayerResult {

@@ -97,21 +97,21 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
   const [blindLevel, setBlindLevel] = useState(1);
   const [alarmVisible, setAlarmVisible] = useState(false);
   const stopAlarmRef = useRef<(() => void) | null>(null);
+  const levelStartRef = useRef<number>(Date.now());
 
-  // Countdown tick
+  // Countdown tick — timestamp-based so re-renders and blocking dialogs don't affect it
   useEffect(() => {
     if (blindMinutes === 0) return;
+    levelStartRef.current = Date.now();
+    setSecondsLeft(totalSeconds);
     const id = setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(id);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const elapsed = Math.floor((Date.now() - levelStartRef.current) / 1000);
+      const remaining = Math.max(0, totalSeconds - elapsed);
+      setSecondsLeft(remaining);
+      if (remaining === 0) clearInterval(id);
+    }, 500);
     return () => clearInterval(id);
-  }, [blindLevel, blindMinutes]);
+  }, [blindLevel, blindMinutes, totalSeconds]);
 
   // Fire alarm when time hits 0
   useEffect(() => {
@@ -125,15 +125,16 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
     stopAlarmRef.current = null;
     setAlarmVisible(false);
     setBlindLevel((l) => l + 1);
-    setSecondsLeft(totalSeconds);
-  }, [totalSeconds]);
+  }, []);
 
   if (!activeTournament) return null;
 
-  const { players, buyInPrice, rebuyPrice, prizeDistribution } = activeTournament;
+  const { players, buyInPrice, rebuyPrice, prizeDistribution, startBlind, blindIncrement } = activeTournament;
   const totalPot = calculateTotalPot(players, buyInPrice, rebuyPrice);
   const timerProgress = blindMinutes > 0 ? secondsLeft / totalSeconds : 0;
   const timerColor = secondsLeft <= 60 ? Colors.danger : secondsLeft <= 120 ? Colors.warning : Colors.success;
+  const currentBlind = startBlind > 0 ? startBlind + (blindLevel - 1) * blindIncrement : 0;
+  const nextBlind = startBlind > 0 ? startBlind + blindLevel * blindIncrement : 0;
 
   function handleAddPlayer() {
     const name = newPlayerName.trim();
@@ -192,6 +193,9 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
             <Text style={styles.alarmEmoji}>🔔</Text>
             <Text style={styles.alarmTitle}>Blinds stiger!</Text>
             <Text style={styles.alarmLevel}>Niveau {blindLevel + 1}</Text>
+            {nextBlind > 0 && (
+              <Text style={styles.alarmBlind}>{nextBlind}/{nextBlind * 2} kr.</Text>
+            )}
             <TouchableOpacity style={styles.alarmBtn} onPress={dismissAlarm} activeOpacity={0.8}>
               <Text style={styles.alarmBtnText}>OK — sluk alarm</Text>
             </TouchableOpacity>
@@ -233,12 +237,18 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
         <View style={styles.timerCard}>
           <View style={styles.timerRow}>
             <View>
-              <Text style={styles.timerLabel}>Blind niveau {blindLevel}</Text>
+              <Text style={styles.timerLabel}>Niveau {blindLevel}</Text>
               <Text style={[styles.timerTime, { color: timerColor }]}>{formatTime(secondsLeft)}</Text>
+              {currentBlind > 0 && (
+                <Text style={styles.timerBlind}>Blind: {currentBlind}/{currentBlind * 2} kr.</Text>
+              )}
             </View>
             <View style={styles.timerRight}>
               <Text style={styles.timerNextLabel}>Næste niveau om</Text>
               <Text style={[styles.timerNextTime, { color: timerColor }]}>{formatTime(secondsLeft)}</Text>
+              {nextBlind > 0 && (
+                <Text style={styles.timerNextBlind}>→ {nextBlind}/{nextBlind * 2} kr.</Text>
+              )}
             </View>
           </View>
           {/* Progress bar */}
@@ -411,6 +421,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   alarmBtnText: { color: '#1a1a1a', fontSize: 18, fontWeight: '800' },
+  alarmBlind: { color: Colors.text, fontSize: 22, fontWeight: '700' },
 
   // Timer
   timerCard: {
@@ -428,6 +439,8 @@ const styles = StyleSheet.create({
   timerRight: { alignItems: 'flex-end' },
   timerNextLabel: { color: Colors.textMuted, fontSize: 12, marginBottom: 2 },
   timerNextTime: { fontSize: 18, fontWeight: '700' },
+  timerBlind: { color: Colors.text, fontSize: 13, fontWeight: '600', marginTop: 2 },
+  timerNextBlind: { color: Colors.textMuted, fontSize: 13, marginTop: 2 },
   progressBg: { height: 6, backgroundColor: Colors.cardAlt, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: 3 },
 
