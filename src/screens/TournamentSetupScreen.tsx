@@ -252,7 +252,7 @@ export default function TournamentSetupScreen({ route, navigation }: Props) {
         <Section title="Blind timer">
           <Text style={styles.label}>Tid per blind niveau</Text>
           <View style={styles.blindRow}>
-            {[0, 10, 15, 20, 25, 30].map((min) => (
+            {[0, 1, 5, 10, 15, 20, 25, 30].map((min) => (
               <TouchableOpacity
                 key={min}
                 style={[styles.blindBtn, blindLevelMinutes === min && styles.blindBtnActive]}
