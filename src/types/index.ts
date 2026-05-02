@@ -25,6 +25,7 @@ export interface ActiveTournament {
   rebuyPrice: number;
   players: Player[];
   prizeDistribution: PrizePlace[];
+  blindLevelMinutes: number;
 }
 
 export interface PlayerResult {

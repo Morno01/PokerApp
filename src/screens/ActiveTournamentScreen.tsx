@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Vibration,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,16 +34,106 @@ function webConfirm(title: string, message: string, onConfirm: () => void) {
   }
 }
 
+// Returns a stop function. Plays looping beep on web, vibration on native.
+function startAlarm(): () => void {
+  if (Platform.OS !== 'web') {
+    Vibration.vibrate([400, 300, 400, 300, 400, 300], true);
+    return () => Vibration.cancel();
+  }
+  try {
+    const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return () => {};
+    const ctx = new AudioCtx() as AudioContext;
+    let stopped = false;
+
+    const beep = (startTime: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.6, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+      osc.start(startTime);
+      osc.stop(startTime + 0.35);
+    };
+
+    const schedule = () => {
+      if (stopped) return;
+      const now = ctx.currentTime;
+      beep(now);
+      beep(now + 0.45);
+      beep(now + 0.90);
+      setTimeout(schedule, 1600);
+    };
+    schedule();
+
+    return () => {
+      stopped = true;
+      ctx.close();
+    };
+  } catch {
+    return () => {};
+  }
+}
+
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 export default function ActiveTournamentScreen({ navigation }: Props) {
   const { activeTournament, addPlayer, removePlayer, addRebuy } = useTournament();
   const [editMode, setEditMode] = useState(false);
   const [addPlayerModalVisible, setAddPlayerModalVisible] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
 
+  // Blind timer
+  const blindMinutes = activeTournament?.blindLevelMinutes ?? 0;
+  const totalSeconds = blindMinutes * 60;
+  const [secondsLeft, setSecondsLeft] = useState(totalSeconds);
+  const [blindLevel, setBlindLevel] = useState(1);
+  const [alarmVisible, setAlarmVisible] = useState(false);
+  const stopAlarmRef = useRef<(() => void) | null>(null);
+
+  // Countdown tick
+  useEffect(() => {
+    if (blindMinutes === 0) return;
+    const id = setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(id);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [blindLevel, blindMinutes]);
+
+  // Fire alarm when time hits 0
+  useEffect(() => {
+    if (blindMinutes === 0 || secondsLeft > 0) return;
+    stopAlarmRef.current = startAlarm();
+    setAlarmVisible(true);
+  }, [secondsLeft, blindMinutes]);
+
+  const dismissAlarm = useCallback(() => {
+    stopAlarmRef.current?.();
+    stopAlarmRef.current = null;
+    setAlarmVisible(false);
+    setBlindLevel((l) => l + 1);
+    setSecondsLeft(totalSeconds);
+  }, [totalSeconds]);
+
   if (!activeTournament) return null;
 
   const { players, buyInPrice, rebuyPrice, prizeDistribution } = activeTournament;
   const totalPot = calculateTotalPot(players, buyInPrice, rebuyPrice);
+  const timerProgress = blindMinutes > 0 ? secondsLeft / totalSeconds : 0;
+  const timerColor = secondsLeft <= 60 ? Colors.danger : secondsLeft <= 120 ? Colors.warning : Colors.success;
 
   function handleAddPlayer() {
     const name = newPlayerName.trim();
@@ -94,6 +185,20 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      {/* ALARM MODAL */}
+      <Modal visible={alarmVisible} transparent animationType="fade" onRequestClose={dismissAlarm}>
+        <View style={styles.alarmOverlay}>
+          <View style={styles.alarmBox}>
+            <Text style={styles.alarmEmoji}>🔔</Text>
+            <Text style={styles.alarmTitle}>Blinds stiger!</Text>
+            <Text style={styles.alarmLevel}>Niveau {blindLevel + 1}</Text>
+            <TouchableOpacity style={styles.alarmBtn} onPress={dismissAlarm} activeOpacity={0.8}>
+              <Text style={styles.alarmBtnText}>OK — sluk alarm</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* POT SUMMARY */}
       <View style={styles.potCard}>
         <View style={styles.potRow}>
@@ -122,6 +227,26 @@ export default function ActiveTournamentScreen({ navigation }: Props) {
           ))}
         </View>
       </View>
+
+      {/* BLIND TIMER */}
+      {blindMinutes > 0 && (
+        <View style={styles.timerCard}>
+          <View style={styles.timerRow}>
+            <View>
+              <Text style={styles.timerLabel}>Blind niveau {blindLevel}</Text>
+              <Text style={[styles.timerTime, { color: timerColor }]}>{formatTime(secondsLeft)}</Text>
+            </View>
+            <View style={styles.timerRight}>
+              <Text style={styles.timerNextLabel}>Næste niveau om</Text>
+              <Text style={[styles.timerNextTime, { color: timerColor }]}>{formatTime(secondsLeft)}</Text>
+            </View>
+          </View>
+          {/* Progress bar */}
+          <View style={styles.progressBg}>
+            <View style={[styles.progressFill, { width: `${timerProgress * 100}%` as any, backgroundColor: timerColor }]} />
+          </View>
+        </View>
+      )}
 
       {/* PLAYERS HEADER */}
       <View style={styles.sectionHeader}>
@@ -254,6 +379,59 @@ function getMedal(place: number): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.bg },
+
+  // Alarm
+  alarmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  alarmBox: {
+    backgroundColor: Colors.card,
+    borderRadius: 24,
+    padding: 40,
+    alignItems: 'center',
+    width: '100%',
+    borderWidth: 2,
+    borderColor: Colors.warning,
+    gap: 12,
+  },
+  alarmEmoji: { fontSize: 64 },
+  alarmTitle: { color: Colors.warning, fontSize: 28, fontWeight: '800' },
+  alarmLevel: { color: Colors.textMuted, fontSize: 18, fontWeight: '600' },
+  alarmBtn: {
+    marginTop: 12,
+    backgroundColor: Colors.warning,
+    borderRadius: 14,
+    paddingVertical: 16,
+    paddingHorizontal: 40,
+    width: '100%',
+    alignItems: 'center',
+  },
+  alarmBtnText: { color: '#1a1a1a', fontSize: 18, fontWeight: '800' },
+
+  // Timer
+  timerCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: Colors.card,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  timerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  timerLabel: { color: Colors.textMuted, fontSize: 12, marginBottom: 2 },
+  timerTime: { fontSize: 32, fontWeight: '800', fontVariant: ['tabular-nums'] as any },
+  timerRight: { alignItems: 'flex-end' },
+  timerNextLabel: { color: Colors.textMuted, fontSize: 12, marginBottom: 2 },
+  timerNextTime: { fontSize: 18, fontWeight: '700' },
+  progressBg: { height: 6, backgroundColor: Colors.cardAlt, borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3 },
+
+  // Pot
   potCard: {
     margin: 16,
     backgroundColor: Colors.card,
@@ -278,6 +456,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   prizePillText: { color: Colors.text, fontSize: 13, fontWeight: '600' },
+
+  // Players
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -308,10 +488,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  editBtnActive: {
-    backgroundColor: Colors.success,
-    borderColor: Colors.success,
-  },
+  editBtnActive: { backgroundColor: Colors.success, borderColor: Colors.success },
   editBtnText: { color: Colors.text, fontSize: 14, fontWeight: '600' },
   editBtnTextActive: { color: Colors.white },
   playersList: { flex: 1, paddingHorizontal: 16 },
@@ -373,11 +550,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   endButtonText: { color: Colors.white, fontSize: 17, fontWeight: '700' },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'flex-end',
-  },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
   modalContent: {
     backgroundColor: Colors.card,
     borderTopLeftRadius: 24,
@@ -385,13 +558,7 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 40,
   },
-  modalTitle: {
-    color: Colors.text,
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+  modalTitle: { color: Colors.text, fontSize: 20, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   modalInput: {
     backgroundColor: Colors.cardAlt,
     borderRadius: 12,
@@ -404,21 +571,11 @@ const styles = StyleSheet.create({
   },
   modalButtons: { flexDirection: 'row', gap: 12 },
   modalCancelBtn: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: Colors.cardAlt,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flex: 1, padding: 14, borderRadius: 12,
+    backgroundColor: Colors.cardAlt, alignItems: 'center',
+    borderWidth: 1, borderColor: Colors.border,
   },
   modalCancelText: { color: Colors.textMuted, fontSize: 16, fontWeight: '600' },
-  modalConfirmBtn: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 12,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-  },
+  modalConfirmBtn: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center' },
   modalConfirmText: { color: Colors.white, fontSize: 16, fontWeight: '600' },
 });

@@ -47,6 +47,7 @@ export default function TournamentSetupScreen({ route, navigation }: Props) {
   const [rebuyPrice, setRebuyPrice] = useState('');
   const [prizeCount, setPrizeCount] = useState(3);
   const [prizePercentages, setPrizePercentages] = useState<string[]>(['50', '30', '20']);
+  const [blindLevelMinutes, setBlindLevelMinutes] = useState(0);
 
   function showError(msg: string) {
     if (Platform.OS === 'web') {
@@ -123,6 +124,7 @@ export default function TournamentSetupScreen({ route, navigation }: Props) {
       buyInPrice: Number(buyInPrice),
       rebuyPrice: Number(rebuyPrice),
       prizeDistribution,
+      blindLevelMinutes,
     });
 
     navigation.replace('ActiveTournament');
@@ -246,6 +248,29 @@ export default function TournamentSetupScreen({ route, navigation }: Props) {
           </View>
         </Section>
 
+        {/* BLIND TIMER */}
+        <Section title="Blind timer">
+          <Text style={styles.label}>Tid per blind niveau</Text>
+          <View style={styles.blindRow}>
+            {[0, 10, 15, 20, 25, 30].map((min) => (
+              <TouchableOpacity
+                key={min}
+                style={[styles.blindBtn, blindLevelMinutes === min && styles.blindBtnActive]}
+                onPress={() => setBlindLevelMinutes(min)}
+              >
+                <Text style={[styles.blindBtnText, blindLevelMinutes === min && styles.blindBtnTextActive]}>
+                  {min === 0 ? 'Ingen' : `${min} min`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {blindLevelMinutes > 0 && (
+            <Text style={styles.blindHint}>
+              ⏱ Alarm lyder hvert {blindLevelMinutes}. minut — stopper ikke før du trykker
+            </Text>
+          )}
+        </Section>
+
         <TouchableOpacity style={styles.startButton} onPress={handleStart} activeOpacity={0.8}>
           <Ionicons name="play" size={20} color={Colors.white} />
           <Text style={styles.startButtonText}>Start turnering</Text>
@@ -338,6 +363,15 @@ const styles = StyleSheet.create({
   totalRowError: { backgroundColor: '#3d1515' },
   totalLabel: { color: Colors.success, fontWeight: '600', fontSize: 15 },
   totalLabelError: { color: Colors.danger },
+  blindRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  blindBtn: {
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10,
+    backgroundColor: Colors.cardAlt, borderWidth: 1, borderColor: Colors.border,
+  },
+  blindBtnActive: { backgroundColor: Colors.warning, borderColor: Colors.warning },
+  blindBtnText: { color: Colors.textMuted, fontSize: 14, fontWeight: '600' },
+  blindBtnTextActive: { color: '#1a1a1a' },
+  blindHint: { color: Colors.warning, fontSize: 13, marginTop: 4 },
   startButton: {
     backgroundColor: Colors.success, borderRadius: 16, padding: 18,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center',

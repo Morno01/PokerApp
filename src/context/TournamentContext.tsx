@@ -13,6 +13,7 @@ interface TournamentContextValue {
     buyInPrice: number;
     rebuyPrice: number;
     prizeDistribution: PrizePlace[];
+    blindLevelMinutes: number;
   }) => void;
   addPlayer: (name: string) => void;
   removePlayer: (id: string) => void;
@@ -30,6 +31,7 @@ export function TournamentProvider({ children }: { children: ReactNode }) {
     buyInPrice: number;
     rebuyPrice: number;
     prizeDistribution: PrizePlace[];
+    blindLevelMinutes: number;
   }) {
     setActiveTournament({
       id: generateId(),
